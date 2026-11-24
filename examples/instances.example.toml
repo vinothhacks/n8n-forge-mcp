@@ -1,0 +1,41 @@
+# Example Multi-Instance Registry for n8n-rs-mcp (ZERO SECRETS)
+# Copy to an OS-protected user config path (0600 on Unix / private user DACL on Windows)
+# or name `instances.local.toml` (gitignored). Supply actual tokens ONLY through environment
+# variables or the OS credential store—never commit literal API keys or tokens.
+
+schema_version = 1
+default_instance = "staging"
+
+[catalog]
+bundle_path = "./data/catalog.sqlite.zst"
+manifest_path = "./data/catalog.manifest.json"
+verify_blake3_on_startup = true
+
+[instances.local-dev]
+url = "http://127.0.0.1:5678"
+environment = "development"
+policy = "full-dev"
+policy_file = "./config/policy.dev.toml"
+api_key_env = "N8N_LOCAL_DEV_API_KEY"
+mcp_base_url = "http://127.0.0.1:5678/mcp-server/http"
+mcp_token_env = "N8N_LOCAL_DEV_MCP_TOKEN"
+
+[instances.staging]
+url = "https://staging-n8n.example.internal"
+environment = "staging"
+policy = "staging-safe"
+policy_file = "./config/policy.staging.toml"
+api_key_env = "N8N_STAGING_API_KEY"
+mcp_base_url = "https://staging-n8n.example.internal/mcp-server/http"
+mcp_token_env = "N8N_STAGING_MCP_TOKEN"
+# Optional Cloudflare Access service token env var names (pinned strictly to `url` origin):
+# cf_access_client_id_env = "CF_STAGING_ACCESS_CLIENT_ID"
+# cf_access_client_secret_env = "CF_STAGING_ACCESS_CLIENT_SECRET"
+
+[instances.prod]
+url = "https://n8n.example.internal"
+environment = "production"
+policy = "read-only"
+policy_file = "./config/policy.prod-read-only.toml"
+api_key_env = "N8N_PROD_READONLY_API_KEY"
+# Native MCP bridge intentionally omitted in default production read-only profile.

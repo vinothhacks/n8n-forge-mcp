@@ -1,0 +1,22 @@
+{
+  "mcpServers": {
+    "n8n-forge": {
+      "command": "n8n-rs-mcp",
+      "args": [
+        "mcp",
+        "--instances-config",
+        "./examples/instances.example.toml",
+        "--instance",
+        "staging",
+        "--policy",
+        "staging-safe"
+      ],
+      "env": {
+        "N8N_STAGING_API_URL": "https://staging-n8n.example.internal",
+        "N8N_STAGING_API_KEY": "${env:N8N_STAGING_API_KEY}",
+        "N8N_STAGING_MCP_TOKEN": "${env:N8N_STAGING_MCP_TOKEN}",
+        "RUST_LOG": "info,n8n_rs_mcp=info"
+      }
+    }
+  }
+}

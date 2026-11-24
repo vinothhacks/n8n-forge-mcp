@@ -1,0 +1,63 @@
+# n8n-rs-mcp Policy Profile: Local Disposable Development (`full-dev`)
+# WARNING: Bind this profile ONLY to isolated local disposable Docker/loopback n8n instances.
+# Never attach `full-dev` to shared staging or production infrastructure.
+
+schema_version = 1
+profile = "full-dev"
+description = "Permissive local development policy for disposable loopback n8n instances with mandatory secret redaction and audit journaling."
+
+[transport]
+require_https = false
+allow_insecure_loopback = true
+allowed_loopback_hosts = ["127.0.0.1", "::1", "localhost"]
+allowed_private_hosts = []
+follow_redirects = false
+max_response_bytes = 16777216        # 16 MiB post-decompression cap
+max_mcp_structured_bytes = 262144    # 256 KiB per Native MCP tool payload
+request_timeout_ms = 30000
+
+[risk_gates]
+allow_r0_read = true
+allow_r1_prepare = true
+allow_r2_draft_write = true
+require_preview_for_r2 = true
+require_receipt_for_r2 = false
+allow_r3_real_effects = true
+require_receipt_for_r3 = true
+allow_r4_destructive_admin = true
+require_receipt_for_r4 = true
+receipt_ttl_seconds = 300
+
+[testing]
+allow_validate_only = true           # T0
+allow_simulate = true                # T1 (still enforces side-effect node classifier)
+allow_manual_execution = true        # T2 (requires R3 receipt)
+allow_production_execution = true    # T3 on local disposable instance (requires R4 receipt)
+block_execute_command_in_simulate = true
+block_filesystem_write_in_simulate = true
+block_unpinned_http_in_simulate = true
+max_repair_attempts = 3
+max_repair_attempts_override = 5
+
+[mutations]
+prefer_native_mcp_partial_update = true
+max_operations_per_call = 1000
+max_bulk_workflows = 20
+max_concurrent_writes_per_workflow = 1
+halt_bulk_on_first_critical_error = true
+capture_encrypted_snapshot_before_write = true
+
+[admin_and_supply_chain]
+allow_credentials_metadata = true
+allow_credentials_write = true
+allow_datatables_write = true
+allow_source_control = false
+allow_community_package_inventory = true
+allow_community_package_install = false
+allowed_community_packages = []
+
+[vault]
+cache_policy = "no_persistent_payload"
+redact_before_serialize = true
+require_private_os_acl = true
+snapshot_retention_days = 14

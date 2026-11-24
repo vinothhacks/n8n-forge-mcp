@@ -1,0 +1,381 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CARGO_TERM_COLOR: always
+  RUST_BACKTRACE: "1"
+
+jobs:
+  secret-scan:
+    name: Zero-Secret & Forbidden Artifact Gate
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout repository (full history for commit scan)
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Scan tracked files for leaked JWTs, PATs, API keys, DSNs, and local state
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import pathlib
+          import re
+          import subprocess
+          import sys
+
+          tracked = subprocess.check_output(["git", "ls-files"], text=True).splitlines()
+
+          forbidden_path_re = re.compile(
+              r"(^|/)(\.env(\..+)?|state\.db.*|snapshots/.*|.*\.local\.(toml|json)|.*\.har|\.context-engine/.*)$"
+          )
+          allowed_env_example_re = re.compile(r"(^|/)\.env\.example$")
+
+          # Exclude scanner definition files and compressed binary archives from literal regex self-matches
+          skip_content_scan = {
+              ".githooks/pre-commit",
+              ".github/workflows/ci.yml",
+          }
+
+          jwt_re = re.compile(r"eyJ" + r"[A-Za-z0-9+/=_-]{14,}")
+          gh_pat_re = re.compile(r"(github_pat_" + r"[A-Za-z0-9_]{12,}|gh[pousr]_" + r"[A-Za-z0-9]{20,})")
+          gl_pat_re = re.compile(r"glpat-" + r"[A-Za-z0-9._-]{12,}")
+          n8n_key_re = re.compile(
+              r"(X-N8N-API-KEY|N8N_API_KEY|N8N_MCP_ACCESS_TOKEN)[\s\"']*[:=][\s\"']*([A-Za-z0-9._-]{24,})",
+              re.IGNORECASE,
+          )
+          safe_placeholder_re = re.compile(
+              r"(REDACTED|PLACEHOLDER|EXAMPLE|YOUR_|DUMMY|TEST_KEY|SYNTHETIC|FAKE|N8N_.*_API_KEY|N8N_.*_TOKEN)",
+              re.IGNORECASE,
+          )
+          third_party_key_re = re.compile(
+              r"(sk-" + r"[A-Za-z0-9_-]{24,}|hf_" + r"[A-Za-z0-9]{20,}|xox[baprs]-" + r"[A-Za-z0-9-]{16,}|rnd_" + r"[A-Za-z0-9]{16,}|sqa_" + r"[A-Za-z0-9]{20,})"
+          )
+          dsn_re = re.compile(
+              r"(postgres|postgresql|mysql|sqlserver|mongodb|redis)://[^/\s:@]+:([^/\s@<$\"{]{6,})@",
+              re.IGNORECASE,
+          )
+          pem_header = "-----BEGIN "
+          pem_key_re = re.compile(pem_header + r"(RSA |EC |OPENSSH |DSA |ENCRYPTED )?PRIVATE KEY-----")
+
+          violations: list[str] = []
+
+          for rel_path in tracked:
+              if forbidden_path_re.search(rel_path) and not allowed_env_example_re.search(rel_path):
+                  violations.append(f"{rel_path}: forbidden runtime/local file tracked in git")
+                  continue
+
+              if rel_path in skip_content_scan or rel_path.endswith(".zst"):
+                  continue
+
+              p = pathlib.Path(rel_path)
+              if not p.is_file():
+                  continue
+
+              try:
+                  text = p.read_text(encoding="utf-8")
+              except UnicodeDecodeError:
+                  continue
+
+              for lineno, line in enumerate(text.splitlines(), start=1):
+                  if jwt_re.search(line) and not safe_placeholder_re.search(line):
+                      violations.append(f"{rel_path}:{lineno}: potential JWT / base64 bearer token literal")
+                  if gh_pat_re.search(line) and not safe_placeholder_re.search(line):
+                      violations.append(f"{rel_path}:{lineno}: potential GitHub PAT literal")
+                  if gl_pat_re.search(line) and not safe_placeholder_re.search(line):
+                      violations.append(f"{rel_path}:{lineno}: potential GitLab PAT literal")
+                  for match in n8n_key_re.finditer(line):
+                      candidate = match.group(2)
+                      if not safe_placeholder_re.search(line) and not safe_placeholder_re.search(candidate):
+                          violations.append(f"{rel_path}:{lineno}: potential literal n8n API/MCP secret assignment")
+                  if third_party_key_re.search(line) and not safe_placeholder_re.search(line):
+                      violations.append(f"{rel_path}:{lineno}: potential third-party API secret literal")
+                  for dsn_match in dsn_re.finditer(line):
+                      pw = dsn_match.group(2)
+                      if not safe_placeholder_re.search(pw) and "user:pass" not in line.lower():
+                          violations.append(f"{rel_path}:{lineno}: potential database DSN with embedded password")
+                  if pem_key_re.search(line) and "TEST_FIXTURE_DO_NOT_USE" not in line:
+                      violations.append(f"{rel_path}:{lineno}: potential PEM private key block")
+
+          if violations:
+              print("Zero-secret scan failed with the following findings:", file=sys.stderr)
+              for v in violations:
+                  print(f"  - {v}", file=sys.stderr)
+              sys.exit(1)
+
+          print(f"Zero-secret scan passed across {len(tracked)} tracked repository files.")
+          PY
+
+  license-and-unsafe-check:
+    name: License, Attribution & Forbid-Unsafe Gate
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Verify unsafe_code = "forbid", workspace lint inheritance, LICENSE, and THIRD_PARTY_NOTICES
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import pathlib
+          import re
+          import sys
+          import tomllib
+
+          root = pathlib.Path(".")
+          errors: list[str] = []
+
+          # 1. Workspace Cargo.toml checks
+          cargo_toml = tomllib.loads((root / "Cargo.toml").read_text(encoding="utf-8"))
+          ws_pkg = cargo_toml.get("workspace", {}).get("package", {})
+          ws_license = ws_pkg.get("license")
+          if ws_license != "MIT OR Apache-2.0":
+              errors.append(f"Cargo.toml [workspace.package].license expected 'MIT OR Apache-2.0', got {ws_license!r}")
+
+          rust_lints = cargo_toml.get("workspace", {}).get("lints", {}).get("rust", {})
+          if rust_lints.get("unsafe_code") != "forbid":
+              errors.append("Cargo.toml [workspace.lints.rust].unsafe_code must be 'forbid'")
+
+          members = cargo_toml.get("workspace", {}).get("members", [])
+          if len(members) != 13:
+              errors.append(f"Expected 13 workspace crates in Cargo.toml, found {len(members)}")
+
+          # 2. Every workspace crate must inherit workspace lints (or explicitly forbid unsafe_code)
+          for member in members:
+              member_cargo_path = root / member / "Cargo.toml"
+              if not member_cargo_path.is_file():
+                  errors.append(f"Missing crate manifest: {member_cargo_path}")
+                  continue
+              member_toml = tomllib.loads(member_cargo_path.read_text(encoding="utf-8"))
+              lints = member_toml.get("lints", {})
+              inherits_ws = lints.get("workspace") is True
+              explicit_forbid = lints.get("rust", {}).get("unsafe_code") == "forbid"
+              if not (inherits_ws or explicit_forbid):
+                  errors.append(f"{member_cargo_path}: must set [lints] workspace = true or rust.unsafe_code = 'forbid'")
+
+          # 3. Scan all first-party Rust sources for unsafe blocks/items or allow(unsafe_code)
+          unsafe_token_re = re.compile(r"\bunsafe\s+(fn|impl|trait|mod|extern|\{)")
+          allow_unsafe_re = re.compile(r"#\s*!\s*\[\s*allow\s*\(\s*unsafe_code\s*\)\s*\]|#\s*\[\s*allow\s*\(\s*unsafe_code\s*\)\s*\]")
+
+          rs_files = sorted((root / "crates").rglob("*.rs"))
+          for rs_path in rs_files:
+              src = rs_path.read_text(encoding="utf-8")
+              if allow_unsafe_re.search(src):
+                  errors.append(f"{rs_path}: contains forbidden #[allow(unsafe_code)] attribute")
+              for idx, line in enumerate(src.splitlines(), start=1):
+                  stripped = line.split("//", 1)[0]
+                  if unsafe_token_re.search(stripped):
+                      errors.append(f"{rs_path}:{idx}: contains forbidden `unsafe` construct")
+
+          # 4. Verify LICENSE and docs/THIRD_PARTY_NOTICES.md
+          license_file = root / "LICENSE"
+          if not license_file.is_file():
+              errors.append("Missing root LICENSE file")
+          else:
+              lic_text = license_file.read_text(encoding="utf-8")
+              for required in ("MIT License", "Apache License", "Version 2.0"):
+                  if required not in lic_text:
+                      errors.append(f"LICENSE missing required text: {required!r}")
+
+          notices_file = root / "docs" / "THIRD_PARTY_NOTICES.md"
+          if not notices_file.is_file():
+              errors.append("Missing docs/THIRD_PARTY_NOTICES.md")
+          else:
+              notices_text = notices_file.read_text(encoding="utf-8")
+              for required in ("czlonkowski/n8n-mcp", "MIT License", "n8n GmbH", "rmcp"):
+                  if required not in notices_text:
+                      errors.append(f"docs/THIRD_PARTY_NOTICES.md missing required attribution: {required!r}")
+
+          if errors:
+              print("License & unsafe verification failed:", file=sys.stderr)
+              for err in errors:
+                  print(f"  - {err}", file=sys.stderr)
+              sys.exit(1)
+
+          print(f"Verified unsafe_code = 'forbid' across {len(members)} crates ({len(rs_files)} .rs files), LICENSE, and THIRD_PARTY_NOTICES.md.")
+          PY
+
+  catalog-reproducibility:
+    name: Offline Catalog Reproducibility & Digest Gate
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python & zstandard
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install Python zstandard
+        run: python -m pip install --upgrade pip zstandard
+
+      - name: Rebuild catalog and verify BLAKE3/SHA-256 manifest reproducibility
+        shell: bash
+        run: |
+          REPRO_DIR="${RUNNER_TEMP}/catalog-repro"
+          python tools/catalog-builder/build_catalog.py --out-dir "${REPRO_DIR}"
+
+          python - "${REPRO_DIR}" <<'PY'
+          import hashlib
+          import json
+          import pathlib
+          import sys
+
+          sys.path.insert(0, str(pathlib.Path("tools/catalog-builder").resolve()))
+          from build_catalog import blake3_hex, verify_roundtrip_archive
+
+          repro_dir = pathlib.Path(sys.argv[1])
+          committed_manifest_path = pathlib.Path("data/catalog.manifest.json")
+          rebuilt_manifest_path = repro_dir / "catalog.manifest.json"
+          rebuilt_bundle_path = repro_dir / "catalog.sqlite.zst"
+
+          if not committed_manifest_path.is_file():
+              raise SystemExit("Missing committed data/catalog.manifest.json")
+
+          committed = json.loads(committed_manifest_path.read_text(encoding="utf-8"))
+          rebuilt = json.loads(rebuilt_manifest_path.read_text(encoding="utf-8"))
+
+          invariant_keys = [
+              "schemaVersion",
+              "bundleVersion",
+              "sourceVersion",
+              "sourceLicense",
+              "targetN8nBaseline",
+              "extractedAt",
+              "blake3Hex",
+              "nodeCount",
+              "templateCount",
+              "tables",
+          ]
+          for key in invariant_keys:
+              if committed.get(key) != rebuilt.get(key):
+                  raise SystemExit(
+                      f"Catalog manifest drift on {key!r}: committed={committed.get(key)!r} != rebuilt={rebuilt.get(key)!r}"
+                  )
+
+          for digest_key in ("decompressedSqliteBlake3", "decompressedSqliteSha256"):
+              c_val = committed["digests"][digest_key]
+              r_val = rebuilt["digests"][digest_key]
+              if c_val != r_val:
+                  raise SystemExit(f"Deterministic SQLite digest mismatch for {digest_key}: {c_val} != {r_val}")
+
+          # Verify rebuilt archive round-trips SQLite PRAGMA integrity_check and FTS5 queries
+          verify_roundtrip_archive(
+              rebuilt_bundle_path,
+              committed["digests"]["decompressedSqliteBlake3"],
+              committed["digests"]["decompressedSqliteSha256"],
+          )
+
+          # If data/catalog.sqlite.zst is tracked on disk, verify its exact compressed & decompressed digests too
+          committed_bundle = pathlib.Path("data/catalog.sqlite.zst")
+          if committed_bundle.is_file():
+              raw_zst = committed_bundle.read_bytes()
+              actual_zst_blake3 = blake3_hex(raw_zst)
+              actual_zst_sha256 = hashlib.sha256(raw_zst).hexdigest()
+              if actual_zst_blake3 != committed["digests"]["compressedZstBlake3"]:
+                  raise SystemExit("Committed catalog.sqlite.zst BLAKE3 does not match data/catalog.manifest.json")
+              if actual_zst_sha256 != committed["digests"]["compressedZstSha256"]:
+                  raise SystemExit("Committed catalog.sqlite.zst SHA-256 does not match data/catalog.manifest.json")
+              verify_roundtrip_archive(
+                  committed_bundle,
+                  committed["digests"]["decompressedSqliteBlake3"],
+                  committed["digests"]["decompressedSqliteSha256"],
+              )
+
+          print(
+              f"Catalog reproducibility verified: blake3={committed['blake3Hex']} "
+              f"({committed['nodeCount']} nodes, {committed['templateCount']} templates)."
+          )
+          PY
+
+  fmt-and-clippy:
+    name: Rustfmt & Clippy (-D warnings)
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install Rust toolchain (from rust-toolchain.toml)
+        uses: dtolnay/rust-toolchain@master
+        with:
+          components: rustfmt, clippy
+
+      - name: Cache Cargo registry and build artifacts
+        uses: Swatinem/rust-cache@v2
+
+      - name: Check formatting (cargo fmt --all -- --check)
+        run: cargo fmt --all -- --check
+
+      - name: Run Clippy across all workspace crates and targets
+        run: cargo clippy --workspace --all-targets -- -D warnings
+
+  test-matrix:
+    name: Workspace Test Suite (${{ matrix.os }})
+    needs:
+      - secret-scan
+      - license-and-unsafe-check
+    strategy:
+      fail-fast: false
+      matrix:
+        os:
+          - ubuntu-latest
+          - windows-latest
+          - macos-latest
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 35
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python & zstandard for catalog bundle
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Ensure offline catalog.sqlite.zst bundle is materialized
+        shell: bash
+        run: |
+          if [ ! -f data/catalog.sqlite.zst ]; then
+            python -m pip install --upgrade pip zstandard
+            python tools/catalog-builder/build_catalog.py --out-dir data
+          fi
+
+      - name: Install Rust toolchain (from rust-toolchain.toml)
+        uses: dtolnay/rust-toolchain@master
+
+      - name: Cache Cargo registry and build artifacts
+        uses: Swatinem/rust-cache@v2
+
+      - name: Run workspace unit, contract, equivalence, wiremock, chaos, and security tests
+        run: cargo test --workspace
+
+      - name: Verify CLI offline catalog digest check
+        run: cargo run -p n8n-mcp-cli -- sync-catalog --from pinned-bundle

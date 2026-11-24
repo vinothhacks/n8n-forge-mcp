@@ -1,0 +1,27 @@
+[package]
+name = "n8n-audit"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+n8n-api-client.workspace = true
+n8n-catalog-db.workspace = true
+n8n-graph.workspace = true
+n8n-types.workspace = true
+n8n-validator.workspace = true
+regex.workspace = true
+schemars.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+tracing.workspace = true
+url.workspace = true
+
+[dev-dependencies]
+tokio.workspace = true
+wiremock.workspace = true

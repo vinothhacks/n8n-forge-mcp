@@ -1,0 +1,41 @@
+{
+  "schemaVersion": 1,
+  "bundleVersion": "2026.11.23-v1",
+  "sourceVersion": "n8n-mcp@2.103.2",
+  "sourceLicense": "MIT",
+  "sourceRepository": "https://github.com/czlonkowski/n8n-mcp",
+  "targetN8nBaseline": "2.48.7",
+  "extractedAt": "2026-11-23T00:00:00Z",
+  "bundleFile": "catalog.sqlite.zst",
+  "blake3Hex": "9cb98f7760c20c6abfdcb55cfc80c9ea53f7e78b8b2b69302ffd14b75c61eaea",
+  "digests": {
+    "decompressedSqliteBlake3": "9cb98f7760c20c6abfdcb55cfc80c9ea53f7e78b8b2b69302ffd14b75c61eaea",
+    "decompressedSqliteSha256": "07541441ad9b9a394d544f6067c5c078a8a81d4c6a596e9aa3520c77c122a5cd",
+    "compressedZstBlake3": "6d155c7d95d527a2be00628acd91544e90b958f402ea758f3b3bd757d5915604",
+    "compressedZstSha256": "04adde5a6eadd3d80afc0a09e8930078774fcf23e86f2bea1c5fbba1efaa5e22"
+  },
+  "sizes": {
+    "decompressedSqliteBytes": 389120,
+    "compressedZstBytes": 65340
+  },
+  "nodeCount": 72,
+  "templateCount": 16,
+  "nativePriorityScale": {
+    "1": "Native service integration or trigger node (highest priority)",
+    "2": "Native data transformation / flow control node (Set, Filter, IF, Switch, Merge, etc.)",
+    "3": "Generic HTTP Request or LangChain/AI cluster node",
+    "4": "Code node (use only with 'Why Code:' rationale when native nodes cannot express logic)",
+    "5": "Community or fallback node"
+  },
+  "tables": {
+    "catalog_metadata": 7,
+    "node_types": 72,
+    "node_versions": 167,
+    "node_properties": 299,
+    "node_operations": 168,
+    "credential_types": 30,
+    "node_fts": 72,
+    "templates": 16,
+    "template_fts": 16
+  }
+}

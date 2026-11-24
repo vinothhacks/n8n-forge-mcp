@@ -1,0 +1,65 @@
+# n8n-rs-mcp Policy Profile: Production Read-Only (`read-only`)
+# Authoritative default profile for production n8n instances.
+# Blocks ALL state mutations (R2-R4) and ALL workflow executions (T1-T3), even if
+# n8n 2.47+ protected instance mode leaves `execute_workflow(production)` enabled.
+
+schema_version = 1
+profile = "read-only"
+description = "Strict zero-mutation, zero-execution production inspection, validation, and static security auditing profile."
+
+[transport]
+require_https = true
+allow_insecure_loopback = false
+allowed_loopback_hosts = []
+allowed_private_hosts = []
+follow_redirects = false
+max_response_bytes = 16777216        # 16 MiB post-decompression cap
+max_mcp_structured_bytes = 262144    # 256 KiB per Native MCP tool payload
+request_timeout_ms = 20000
+
+[risk_gates]
+allow_r0_read = true
+allow_r1_prepare = true              # Local validation & dry-run diff calculation only; never writes
+allow_r2_draft_write = false
+require_preview_for_r2 = true
+require_receipt_for_r2 = true
+allow_r3_real_effects = false
+require_receipt_for_r3 = true
+allow_r4_destructive_admin = false
+require_receipt_for_r4 = true
+receipt_ttl_seconds = 180
+
+[testing]
+allow_validate_only = true           # T0 offline / read-only validation only
+allow_simulate = false               # T1 blocked in production read-only
+allow_manual_execution = false       # T2 blocked in production read-only
+allow_production_execution = false   # T3 unconditionally blocked
+block_execute_command_in_simulate = true
+block_filesystem_write_in_simulate = true
+block_unpinned_http_in_simulate = true
+fail_closed_on_unknown_subworkflow = true
+max_repair_attempts = 0
+max_repair_attempts_override = 0
+
+[mutations]
+prefer_native_mcp_partial_update = true
+max_operations_per_call = 0
+max_bulk_workflows = 0
+max_concurrent_writes_per_workflow = 0
+halt_bulk_on_first_critical_error = true
+capture_encrypted_snapshot_before_write = false
+
+[admin_and_supply_chain]
+allow_credentials_metadata = true
+allow_credentials_write = false
+allow_datatables_write = false
+allow_source_control = false
+allow_community_package_inventory = true
+allow_community_package_install = false
+allowed_community_packages = []
+
+[vault]
+cache_policy = "no_persistent_payload"
+redact_before_serialize = true
+require_private_os_acl = true
+snapshot_retention_days = 30

@@ -1,0 +1,43 @@
+# IDE, Agent & Local Tooling State
+.rocketride/
+.cursor/
+.context-engine/
+.rust-anything/
+
+# Secrets & Local Overrides (NEVER COMMIT)
+.env
+.env.*
+!.env.example
+*.local.toml
+*.local.json
+*.pem
+*.key
+*.p12
+*.pfx
+
+# Rust & Packaging Build Artifacts
+target/
+dist/
+
+# Runtime Vault, SQLite WAL & Encrypted Snapshots (NEVER COMMIT)
+state.db
+state.db*
+*.wal
+*.shm
+snapshots/
+
+# Network Captures & Uncompressed Scratch DBs
+*.har
+data/*.sqlite
+data/*.db
+!data/catalog.sqlite.zst
+!data/catalog.manifest.json
+
+# Python / Node Tooling Caches
+__pycache__/
+*.py[cod]
+node_modules/
+
+# OS Metadata
+.DS_Store
+Thumbs.db

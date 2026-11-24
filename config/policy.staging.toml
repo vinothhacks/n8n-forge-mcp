@@ -1,0 +1,65 @@
+# n8n-rs-mcp Policy Profile: Shared Staging (`staging-safe`)
+# Default profile for non-production staging / QA n8n environments.
+# Permits offline validation, previewed inactive draft edits, and policy-checked T1 simulations;
+# requires cryptographic single-use ApprovalReceipts for R3 live effects; blocks R4 admin/prod ops.
+
+schema_version = 1
+profile = "staging-safe"
+description = "Guarded staging policy enabling draft construction, safe pin-data simulation, and receipt-gated staging verification."
+
+[transport]
+require_https = true
+allow_insecure_loopback = false
+allowed_loopback_hosts = []
+allowed_private_hosts = []           # Populate exact internal hostname/IP only for private enterprise staging
+follow_redirects = false
+max_response_bytes = 16777216        # 16 MiB post-decompression cap
+max_mcp_structured_bytes = 262144    # 256 KiB per Native MCP tool payload
+request_timeout_ms = 30000
+
+[risk_gates]
+allow_r0_read = true
+allow_r1_prepare = true
+allow_r2_draft_write = true
+require_preview_for_r2 = true
+require_receipt_for_r2 = false       # Requires matching plan_id + expected_version_hash
+allow_r3_real_effects = true
+require_receipt_for_r3 = true        # Mandatory single-use HMAC/BLAKE3 ApprovalReceipt
+allow_r4_destructive_admin = false
+require_receipt_for_r4 = true
+receipt_ttl_seconds = 300
+
+[testing]
+allow_validate_only = true           # T0
+allow_simulate = true                # T1 via Native MCP test_workflow when side-effect gate passes
+allow_manual_execution = true        # T2 staging run (requires R3 ApprovalReceipt)
+allow_production_execution = false   # T3 disabled in staging-safe
+block_execute_command_in_simulate = true
+block_filesystem_write_in_simulate = true
+block_unpinned_http_in_simulate = true
+fail_closed_on_unknown_subworkflow = true
+max_repair_attempts = 3
+max_repair_attempts_override = 5
+
+[mutations]
+prefer_native_mcp_partial_update = true
+max_operations_per_call = 500
+max_bulk_workflows = 20
+max_concurrent_writes_per_workflow = 1
+halt_bulk_on_first_critical_error = true
+capture_encrypted_snapshot_before_write = true
+
+[admin_and_supply_chain]
+allow_credentials_metadata = true
+allow_credentials_write = false
+allow_datatables_write = true        # Gated by R3 ApprovalReceipt
+allow_source_control = false
+allow_community_package_inventory = true
+allow_community_package_install = false
+allowed_community_packages = []
+
+[vault]
+cache_policy = "no_persistent_payload"
+redact_before_serialize = true
+require_private_os_acl = true
+snapshot_retention_days = 30

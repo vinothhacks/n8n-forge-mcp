@@ -1,0 +1,983 @@
+{
+  "schemaVersion": 1,
+  "contractName": "n8n-public-api-v1-discover-and-openapi-matrix",
+  "openapiVersion": "3.0.0",
+  "targetBaselineVersion": "2.48.7",
+  "legacyFloorVersion": "2.3.6",
+  "sanitizedServerTemplate": "https://n8n.example.internal/api/v1",
+  "authentication": {
+    "headerName": "X-N8N-API-KEY",
+    "originScoped": true,
+    "followRedirects": false,
+    "nativeMcpEndpointPath": "/mcp-server/http",
+    "nativeMcpAuthScheme": "Bearer",
+    "separateTokensMandatory": true
+  },
+  "rateLimitContract": {
+    "introducedIn": "2.47.0",
+    "enabledByDefault": false,
+    "buckets": [
+      "global_api_key_read",
+      "global_api_key_write",
+      "per_endpoint_read",
+      "per_endpoint_write"
+    ],
+    "headers": [
+      "Retry-After",
+      "X-RateLimit-Limit",
+      "X-RateLimit-Remaining",
+      "X-RateLimit-Reset"
+    ]
+  },
+  "idempotencyContract": {
+    "introducedIn": "2.45.0",
+    "headerName": "Idempotency-Key",
+    "retentionWindowHours": 12,
+    "supportedMethods": ["POST"],
+    "ignoredMethods": ["GET", "PUT", "PATCH", "DELETE"],
+    "onTimeoutPolicy": "reconcile_before_retry_using_identical_key_and_canonical_body"
+  },
+  "verifiedEdgeCases": {
+    "agentScopesWithoutEndpoints": {
+      "advertisedScopes": [
+        "agent:create",
+        "agent:read",
+        "agent:update",
+        "agent:delete",
+        "agent:list"
+      ],
+      "restResourcesExposedInDiscover": false,
+      "openapiPathsPresent": false,
+      "requiredCapabilityDecision": "unsupported",
+      "diagnosticCode": "AGENT_ENDPOINTS_NOT_EXPOSED",
+      "rationale": "n8n /api/v1/discover includes agent:* scopes in the scope catalog even when no /agents REST resource is exposed; n8n_agents must report unsupported unless /agents REST operations or Native MCP agent tools are explicitly advertised."
+    },
+    "publishVsActivateNegotiation": {
+      "modernRoutesIntroducedIn": "2.33.0",
+      "modernPublishPath": "/workflows/{id}/publish",
+      "modernUnpublishPath": "/workflows/{id}/unpublish",
+      "legacyActivatePath": "/workflows/{id}/activate",
+      "legacyDeactivatePath": "/workflows/{id}/deactivate",
+      "deprecationHeader": "Deprecation",
+      "postWriteVerification": "must_verify_activeVersionId_on_readback"
+    }
+  },
+  "advertisedScopes": [
+    "workflow:create",
+    "workflow:read",
+    "workflow:update",
+    "workflow:delete",
+    "workflow:list",
+    "workflow:move",
+    "workflow:activate",
+    "workflow:deactivate",
+    "workflow:publish",
+    "workflow:unpublish",
+    "workflow:archive",
+    "workflow:unarchive",
+    "execution:read",
+    "execution:delete",
+    "execution:list",
+    "execution:retry",
+    "execution:stop",
+    "credential:create",
+    "credential:read",
+    "credential:update",
+    "credential:delete",
+    "credential:list",
+    "credential:move",
+    "credential:test",
+    "tag:create",
+    "tag:read",
+    "tag:update",
+    "tag:delete",
+    "tag:list",
+    "variable:create",
+    "variable:read",
+    "variable:update",
+    "variable:delete",
+    "variable:list",
+    "project:create",
+    "project:read",
+    "project:update",
+    "project:delete",
+    "project:list",
+    "folder:create",
+    "folder:read",
+    "folder:update",
+    "folder:delete",
+    "folder:list",
+    "dataTable:create",
+    "dataTable:read",
+    "dataTable:update",
+    "dataTable:delete",
+    "dataTable:list",
+    "dataTableRow:read",
+    "dataTableRow:write",
+    "evaluation:read",
+    "evaluation:list",
+    "evaluation:run",
+    "user:create",
+    "user:read",
+    "user:update",
+    "user:delete",
+    "user:list",
+    "user:changeRole",
+    "audit:generate",
+    "communityPackage:list",
+    "communityPackage:install",
+    "communityPackage:update",
+    "communityPackage:uninstall",
+    "sourceControl:pull",
+    "sourceControl:push",
+    "sourceControl:status",
+    "n8nPackage:export",
+    "n8nPackage:import",
+    "promotion:create",
+    "promotion:read",
+    "nodeTypePolicy:read",
+    "nodeTypePolicy:update",
+    "credentialTypePolicy:read",
+    "credentialTypePolicy:update",
+    "logStreaming:read",
+    "logStreaming:update",
+    "securitySettings:read",
+    "securitySettings:update",
+    "agent:create",
+    "agent:read",
+    "agent:update",
+    "agent:delete",
+    "agent:list"
+  ],
+  "resources": {
+    "discovery": [
+      {
+        "method": "GET",
+        "path": "/discover",
+        "queryParams": ["include"],
+        "operationId": "getDiscoveryCatalog",
+        "requiredScope": null,
+        "minVersion": "2.20.0",
+        "riskLevel": "R0",
+        "idempotentPost": false,
+        "mcpTool": "n8n_capabilities"
+      },
+      {
+        "method": "GET",
+        "path": "/openapi.yml",
+        "operationId": "getOpenApiSpec",
+        "requiredScope": null,
+        "minVersion": "2.14.0",
+        "riskLevel": "R0",
+        "idempotentPost": false,
+        "mcpTool": "n8n_capabilities"
+      }
+    ],
+    "workflow": [
+      {
+        "method": "GET",
+        "path": "/workflows",
+        "operationId": "getWorkflows",
+        "requiredScope": "workflow:list",
+        "minVersion": "2.3.6",
+        "riskLevel": "R0",
+        "idempotentPost": false,
+        "mcpTool": "n8n_workflows"
+      },
+      {
+        "method": "POST",
+        "path": "/workflows",
+        "operationId": "createWorkflow",
+        "requiredScope": "workflow:create",
+        "minVersion": "2.3.6",
+        "riskLevel": "R2",
+        "idempotentPost": true,
+        "mcpTool": "n8n_workflows"
+      },
+      {
+        "method": "GET",
+        "path": "/workflows/{id}",
+        "operationId": "getWorkflow",
+        "requiredScope": "workflow:read",
+        "minVersion": "2.3.6",
+        "riskLevel": "R0",
+        "idempotentPost": false,
+        "mcpTool": "n8n_workflows"
+      },
+      {
+        "method": "PUT",
+        "path": "/workflows/{id}",
+        "operationId": "updateWorkflow",
+        "requiredScope": "workflow:update",
+        "minVersion": "2.3.6",
+        "riskLevel": "R2",
+        "idempotentPost": false,
+        "mcpTool": "n8n_mutate_nodes"
+      },
+      {
+        "method": "DELETE",
+        "path": "/workflows/{id}",
+        "operationId": "deleteWorkflow",
+        "requiredScope": "workflow:delete",
+        "minVersion": "2.3.6",
+        "riskLevel": "R4",
+        "idempotentPost": false,
+        "mcpTool": "n8n_workflows"
+      },
+      {
+        "method": "POST",
+        "path": "/workflows/{id}/publish",
+        "operationId": "publishWorkflow",
+        "requiredScope": "workflow:publish",
+        "minVersion": "2.33.0",
+        "riskLevel": "R3",
+        "idempotentPost": true,
+        "mcpTool": "n8n_workflows"
+      },
+      {
+        "method": "POST",
+        "path": "/workflows/{id}/unpublish",
+        "operationId": "unpublishWorkflow",
+        "requiredScope": "workflow:unpublish",
+        "minVersion": "2.33.0",
+        "riskLevel": "R3",
+        "idempotentPost": true,
+        "mcpTool": "n8n_workflows"
+      },
+      {
+        "method": "POST",
+        "path": "/workflows/{id}/activate",
+        "operationId": "activateWorkflow",
+        "requiredScope": "workflow:activate",
+        "minVersion": "2.3.6",
+        "deprecatedIn": "2.33.0",
+        "riskLevel": "R3",
+        "idempotentPost": false,
+        "mcpTool": "n8n_workflows"
+      },
+      {
+        "method": "POST",
+        "path": "/workflows/{id}/deactivate",
+        "operationId": "deactivateWorkflow",
+        "requiredScope": "workflow:deactivate",
+        "minVersion": "2.3.6",
+        "deprecatedIn": "2.33.0",
+        "riskLevel": "R3",
+        "idempotentPost": false,
+        "mcpTool": "n8n_workflows"
+      },
+      {
+        "method": "POST",
+        "path": "/workflows/{id}/archive",
+        "operationId": "archiveWorkflow",
+        "requiredScope": "workflow:archive",
+        "minVersion": "2.22.0",
+        "riskLevel": "R3",
+        "idempotentPost": true,
+        "mcpTool": "n8n_workflows"
+      },
+      {
+        "method": "POST",
+        "path": "/workflows/{id}/unarchive",
+        "operationId": "unarchiveWorkflow",
+        "requiredScope": "workflow:unarchive",
+        "minVersion": "2.22.0",
+        "riskLevel": "R2",
+        "idempotentPost": true,
+        "mcpTool": "n8n_workflows"
+      },
+      {
+        "method": "PUT",
+        "path": "/workflows/{id}/transfer",
+        "operationId": "transferWorkflow",
+        "requiredScope": "workflow:move",
+        "minVersion": "2.14.0",
+        "riskLevel": "R3",
+        "idempotentPost": false,
+        "mcpTool": "n8n_workflows"
+      },
+      {
+        "method": "GET",
+        "path": "/workflows/{id}/history",
+        "operationId": "getWorkflowHistory",
+        "requiredScope": "workflow:read",
+        "minVersion": "2.29.0",
+        "riskLevel": "R0",
+        "idempotentPost": false,
+        "mcpTool": "n8n_versions"
+      },
+      {
+        "method": "GET",
+        "path": "/workflows/{id}/versions/{workflowVersionId}",
+        "operationId": "getWorkflowVersion",
+        "requiredScope": "workflow:read",
+        "minVersion": "2.29.0",
+        "riskLevel": "R0",
+        "idempotentPost": false,
+        "mcpTool": "n8n_versions"
+      },
+      {
+        "method": "GET",
+        "path": "/workflows/{id}/dependencies",
+        "operationId": "getWorkflowDependencies",
+        "requiredScope": "workflow:read",
+        "minVersion": "2.35.0",
+        "riskLevel": "R0",
+        "idempotentPost": false,
+        "mcpTool": "n8n_workflows"
+      },
+      {
+        "method": "GET",
+        "path": "/workflows/{id}/tags",
+        "operationId": "getWorkflowTags",
+        "requiredScope": "workflow:read",
+        "minVersion": "2.3.6",
+        "riskLevel": "R0",
+        "idempotentPost": false,
+        "mcpTool": "n8n_workflows"
+      },
+      {
+        "method": "PUT",
+        "path": "/workflows/{id}/tags",
+        "operationId": "updateWorkflowTags",
+        "requiredScope": "workflow:update",
+        "minVersion": "2.3.6",
+        "riskLevel": "R2",
+        "idempotentPost": false,
+        "mcpTool": "n8n_workflows"
+      }
+    ],
+    "executions": [
+      {
+        "method": "GET",
+        "path": "/executions",
+        "operationId": "getExecutions",
+        "requiredScope": "execution:list",
+        "minVersion": "2.3.6",
+        "riskLevel": "R0",
+        "idempotentPost": false,
+        "mcpTool": "n8n_executions"
+      },
+      {
+        "method": "GET",
+        "path": "/executions/{id}",
+        "operationId": "getExecution",
+        "requiredScope": "execution:read",
+        "minVersion": "2.3.6",
+        "riskLevel": "R0",
+        "idempotentPost": false,
+        "mcpTool": "n8n_executions"
+      },
+      {
+        "method": "DELETE",
+        "path": "/executions/{id}",
+        "operationId": "deleteExecution",
+        "requiredScope": "execution:delete",
+        "minVersion": "2.3.6",
+        "riskLevel": "R4",
+        "idempotentPost": false,
+        "mcpTool": "n8n_executions"
+      },
+      {
+        "method": "POST",
+        "path": "/executions/{id}/retry",
+        "operationId": "retryExecution",
+        "requiredScope": "execution:retry",
+        "minVersion": "2.14.0",
+        "riskLevel": "R3",
+        "idempotentPost": false,
+        "mcpTool": "n8n_executions"
+      },
+      {
+        "method": "POST",
+        "path": "/executions/{id}/stop",
+        "operationId": "stopExecution",
+        "requiredScope": "execution:stop",
+        "minVersion": "2.20.0",
+        "riskLevel": "R3",
+        "idempotentPost": true,
+        "mcpTool": "n8n_executions"
+      },
+      {
+        "method": "PUT",
+        "path": "/executions/{id}/tags",
+        "operationId": "updateExecutionTags",
+        "requiredScope": "execution:read",
+        "minVersion": "2.24.0",
+        "riskLevel": "R2",
+        "idempotentPost": false,
+        "mcpTool": "n8n_executions"
+      }
+    ],
+    "evaluation": [
+      {
+        "method": "GET",
+        "path": "/workflows/{id}/test-runs",
+        "operationId": "listWorkflowTestRuns",
+        "requiredScope": "evaluation:list",
+        "minVersion": "2.30.0",
+        "riskLevel": "R0",
+        "idempotentPost": false,
+        "mcpTool": "n8n_evaluations"
+      },
+      {
+        "method": "POST",
+        "path": "/workflows/{id}/test-runs",
+        "operationId": "triggerWorkflowTestRun",
+        "requiredScope": "evaluation:run",
+        "minVersion": "2.32.0",
+        "riskLevel": "R3",
+        "idempotentPost": true,
+        "mcpTool": "n8n_evaluations"
+      },
+      {
+        "method": "GET",
+        "path": "/workflows/{id}/test-runs/{runId}",
+        "operationId": "getWorkflowTestRun",
+        "requiredScope": "evaluation:read",
+        "minVersion": "2.30.0",
+        "riskLevel": "R0",
+        "idempotentPost": false,
+        "mcpTool": "n8n_evaluations"
+      },
+      {
+        "method": "GET",
+        "path": "/workflows/{id}/test-runs/{runId}/test-cases",
+        "operationId": "listWorkflowTestCases",
+        "requiredScope": "evaluation:read",
+        "minVersion": "2.30.0",
+        "riskLevel": "R0",
+        "idempotentPost": false,
+        "mcpTool": "n8n_evaluations"
+      },
+      {
+        "method": "POST",
+        "path": "/workflows/{id}/test-runs/{runId}/cancel",
+        "operationId": "cancelWorkflowTestRun",
+        "requiredScope": "evaluation:run",
+        "minVersion": "2.32.0",
+        "riskLevel": "R3",
+        "idempotentPost": true,
+        "mcpTool": "n8n_evaluations"
+      }
+    ],
+    "credential": [
+      {
+        "method": "GET",
+        "path": "/credentials",
+        "operationId": "getCredentials",
+        "requiredScope": "credential:list",
+        "minVersion": "2.14.0",
+        "riskLevel": "R0",
+        "idempotentPost": false,
+        "mcpTool": "n8n_credentials"
+      },
+      {
+        "method": "POST",
+        "path": "/credentials",
+        "operationId": "createCredential",
+        "requiredScope": "credential:create",
+        "minVersion": "2.3.6",
+        "riskLevel": "R4",
+        "idempotentPost": true,
+        "mcpTool": "n8n_credentials"
+      },
+      {
+        "method": "GET",
+        "path": "/credentials/{id}",
+        "operationId": "getCredentialMetadata",
+        "requiredScope": "credential:read",
+        "minVersion": "2.14.0",
+        "riskLevel": "R0",
+        "idempotentPost": false,
+        "mcpTool": "n8n_credentials"
+      },
+      {
+        "method": "PATCH",
+        "path": "/credentials/{id}",
+        "operationId": "updateCredential",
+        "requiredScope": "credential:update",
+        "minVersion": "2.14.0",
+        "riskLevel": "R4",
+        "idempotentPost": false,
+        "mcpTool": "n8n_credentials"
+      },
+      {
+        "method": "DELETE",
+        "path": "/credentials/{id}",
+        "operationId": "deleteCredential",
+        "requiredScope": "credential:delete",
+        "minVersion": "2.3.6",
+        "riskLevel": "R4",
+        "idempotentPost": false,
+        "mcpTool": "n8n_credentials"
+      },
+      {
+        "method": "PUT",
+        "path": "/credentials/{id}/transfer",
+        "operationId": "transferCredential",
+        "requiredScope": "credential:move",
+        "minVersion": "2.14.0",
+        "riskLevel": "R3",
+        "idempotentPost": false,
+        "mcpTool": "n8n_credentials"
+      },
+      {
+        "method": "GET",
+        "path": "/credentials/schema/{credentialTypeName}",
+        "operationId": "getCredentialSchema",
+        "requiredScope": "credential:read",
+        "minVersion": "2.3.6",
+        "riskLevel": "R0",
+        "idempotentPost": false,
+        "mcpTool": "n8n_credentials"
+      },
+      {
+        "method": "POST",
+        "path": "/credentials/{id}/test",
+        "operationId": "testCredential",
+        "requiredScope": "credential:test",
+        "minVersion": "2.35.0",
+        "riskLevel": "R3",
+        "idempotentPost": false,
+        "mcpTool": "n8n_credentials"
+      },
+      {
+        "method": "GET",
+        "path": "/credentials/{id}/dependencies",
+        "operationId": "getCredentialDependencies",
+        "requiredScope": "credential:read",
+        "minVersion": "2.35.0",
+        "riskLevel": "R0",
+        "idempotentPost": false,
+        "mcpTool": "n8n_credentials"
+      }
+    ],
+    "datatable": [
+      {
+        "method": "GET",
+        "path": "/data-tables",
+        "operationId": "listDataTables",
+        "requiredScope": "dataTable:list",
+        "minVersion": "2.26.0",
+        "riskLevel": "R0",
+        "idempotentPost": false,
+        "mcpTool": "n8n_datatables"
+      },
+      {
+        "method": "POST",
+        "path": "/data-tables",
+        "operationId": "createDataTable",
+        "requiredScope": "dataTable:create",
+        "minVersion": "2.26.0",
+        "riskLevel": "R3",
+        "idempotentPost": true,
+        "mcpTool": "n8n_datatables"
+      },
+      {
+        "method": "GET",
+        "path": "/data-tables/{id}",
+        "operationId": "getDataTable",
+        "requiredScope": "dataTable:read",
+        "minVersion": "2.26.0",
+        "riskLevel": "R0",
+        "idempotentPost": false,
+        "mcpTool": "n8n_datatables"
+      },
+      {
+        "method": "PATCH",
+        "path": "/data-tables/{id}",
+        "operationId": "updateDataTable",
+        "requiredScope": "dataTable:update",
+        "minVersion": "2.26.0",
+        "riskLevel": "R3",
+        "idempotentPost": false,
+        "mcpTool": "n8n_datatables"
+      },
+      {
+        "method": "DELETE",
+        "path": "/data-tables/{id}",
+        "operationId": "deleteDataTable",
+        "requiredScope": "dataTable:delete",
+        "minVersion": "2.26.0",
+        "riskLevel": "R4",
+        "idempotentPost": false,
+        "mcpTool": "n8n_datatables"
+      },
+      {
+        "method": "GET",
+        "path": "/data-tables/{id}/rows",
+        "operationId": "getDataTableRows",
+        "requiredScope": "dataTableRow:read",
+        "minVersion": "2.26.0",
+        "riskLevel": "R0",
+        "idempotentPost": false,
+        "mcpTool": "n8n_datatables"
+      },
+      {
+        "method": "POST",
+        "path": "/data-tables/{id}/rows",
+        "operationId": "insertDataTableRows",
+        "requiredScope": "dataTableRow:write",
+        "minVersion": "2.26.0",
+        "riskLevel": "R3",
+        "idempotentPost": true,
+        "mcpTool": "n8n_datatables"
+      },
+      {
+        "method": "PATCH",
+        "path": "/data-tables/{id}/rows/update",
+        "operationId": "updateDataTableRows",
+        "requiredScope": "dataTableRow:write",
+        "minVersion": "2.26.0",
+        "riskLevel": "R3",
+        "idempotentPost": false,
+        "mcpTool": "n8n_datatables"
+      },
+      {
+        "method": "POST",
+        "path": "/data-tables/{id}/rows/upsert",
+        "operationId": "upsertDataTableRow",
+        "requiredScope": "dataTableRow:write",
+        "minVersion": "2.26.0",
+        "riskLevel": "R3",
+        "idempotentPost": true,
+        "mcpTool": "n8n_datatables"
+      },
+      {
+        "method": "DELETE",
+        "path": "/data-tables/{id}/rows/delete",
+        "operationId": "deleteDataTableRows",
+        "requiredScope": "dataTableRow:write",
+        "minVersion": "2.26.0",
+        "riskLevel": "R4",
+        "idempotentPost": false,
+        "mcpTool": "n8n_datatables"
+      },
+      {
+        "method": "GET",
+        "path": "/data-tables/{id}/dependencies",
+        "operationId": "getDataTableDependencies",
+        "requiredScope": "dataTable:read",
+        "minVersion": "2.35.0",
+        "riskLevel": "R0",
+        "idempotentPost": false,
+        "mcpTool": "n8n_datatables"
+      }
+    ],
+    "organization": [
+      {
+        "method": "GET",
+        "path": "/projects",
+        "operationId": "listProjects",
+        "requiredScope": "project:list",
+        "minVersion": "2.14.0",
+        "riskLevel": "R0",
+        "idempotentPost": false,
+        "mcpTool": "n8n_catalog_org"
+      },
+      {
+        "method": "POST",
+        "path": "/projects",
+        "operationId": "createProject",
+        "requiredScope": "project:create",
+        "minVersion": "2.14.0",
+        "riskLevel": "R4",
+        "idempotentPost": true,
+        "mcpTool": "n8n_admin_access"
+      },
+      {
+        "method": "GET",
+        "path": "/projects/{projectId}/folders",
+        "operationId": "listFolders",
+        "requiredScope": "folder:list",
+        "minVersion": "2.19.0",
+        "riskLevel": "R0",
+        "idempotentPost": false,
+        "mcpTool": "n8n_catalog_org"
+      },
+      {
+        "method": "POST",
+        "path": "/projects/{projectId}/folders",
+        "operationId": "createFolder",
+        "requiredScope": "folder:create",
+        "minVersion": "2.19.0",
+        "riskLevel": "R2",
+        "idempotentPost": true,
+        "mcpTool": "n8n_catalog_org"
+      },
+      {
+        "method": "PATCH",
+        "path": "/projects/{projectId}/folders/{folderId}",
+        "operationId": "updateFolder",
+        "requiredScope": "folder:update",
+        "minVersion": "2.19.0",
+        "riskLevel": "R2",
+        "idempotentPost": false,
+        "mcpTool": "n8n_catalog_org"
+      },
+      {
+        "method": "DELETE",
+        "path": "/projects/{projectId}/folders/{folderId}",
+        "operationId": "deleteFolder",
+        "requiredScope": "folder:delete",
+        "minVersion": "2.19.0",
+        "riskLevel": "R4",
+        "idempotentPost": false,
+        "mcpTool": "n8n_catalog_org"
+      },
+      {
+        "method": "GET",
+        "path": "/tags",
+        "operationId": "listTags",
+        "requiredScope": "tag:list",
+        "minVersion": "2.3.6",
+        "riskLevel": "R0",
+        "idempotentPost": false,
+        "mcpTool": "n8n_catalog_org"
+      },
+      {
+        "method": "POST",
+        "path": "/tags",
+        "operationId": "createTag",
+        "requiredScope": "tag:create",
+        "minVersion": "2.3.6",
+        "riskLevel": "R2",
+        "idempotentPost": true,
+        "mcpTool": "n8n_catalog_org"
+      },
+      {
+        "method": "PUT",
+        "path": "/tags/{id}",
+        "operationId": "updateTag",
+        "requiredScope": "tag:update",
+        "minVersion": "2.3.6",
+        "riskLevel": "R2",
+        "idempotentPost": false,
+        "mcpTool": "n8n_catalog_org"
+      },
+      {
+        "method": "DELETE",
+        "path": "/tags/{id}",
+        "operationId": "deleteTag",
+        "requiredScope": "tag:delete",
+        "minVersion": "2.3.6",
+        "riskLevel": "R4",
+        "idempotentPost": false,
+        "mcpTool": "n8n_catalog_org"
+      },
+      {
+        "method": "GET",
+        "path": "/variables",
+        "operationId": "listVariables",
+        "requiredScope": "variable:list",
+        "minVersion": "2.3.6",
+        "riskLevel": "R0",
+        "idempotentPost": false,
+        "mcpTool": "n8n_catalog_org"
+      },
+      {
+        "method": "POST",
+        "path": "/variables",
+        "operationId": "createVariable",
+        "requiredScope": "variable:create",
+        "minVersion": "2.3.6",
+        "riskLevel": "R3",
+        "idempotentPost": true,
+        "mcpTool": "n8n_catalog_org"
+      },
+      {
+        "method": "PUT",
+        "path": "/variables/{id}",
+        "operationId": "updateVariable",
+        "requiredScope": "variable:update",
+        "minVersion": "2.3.6",
+        "riskLevel": "R3",
+        "idempotentPost": false,
+        "mcpTool": "n8n_catalog_org"
+      },
+      {
+        "method": "DELETE",
+        "path": "/variables/{id}",
+        "operationId": "deleteVariable",
+        "requiredScope": "variable:delete",
+        "minVersion": "2.3.6",
+        "riskLevel": "R4",
+        "idempotentPost": false,
+        "mcpTool": "n8n_catalog_org"
+      }
+    ],
+    "enterpriseAndAdmin": [
+      {
+        "method": "POST",
+        "path": "/audit",
+        "operationId": "generateInstanceAudit",
+        "requiredScope": "audit:generate",
+        "minVersion": "2.3.6",
+        "riskLevel": "R0",
+        "idempotentPost": false,
+        "mcpTool": "n8n_audit"
+      },
+      {
+        "method": "GET",
+        "path": "/community-packages",
+        "operationId": "listCommunityPackages",
+        "requiredScope": "communityPackage:list",
+        "minVersion": "2.14.0",
+        "riskLevel": "R0",
+        "idempotentPost": false,
+        "mcpTool": "n8n_community_packages"
+      },
+      {
+        "method": "POST",
+        "path": "/community-packages",
+        "operationId": "installCommunityPackage",
+        "requiredScope": "communityPackage:install",
+        "minVersion": "2.14.0",
+        "riskLevel": "R4",
+        "idempotentPost": false,
+        "mcpTool": "n8n_community_packages"
+      },
+      {
+        "method": "PATCH",
+        "path": "/community-packages",
+        "operationId": "updateCommunityPackage",
+        "requiredScope": "communityPackage:update",
+        "minVersion": "2.14.0",
+        "riskLevel": "R4",
+        "idempotentPost": false,
+        "mcpTool": "n8n_community_packages"
+      },
+      {
+        "method": "DELETE",
+        "path": "/community-packages",
+        "operationId": "uninstallCommunityPackage",
+        "requiredScope": "communityPackage:uninstall",
+        "minVersion": "2.14.0",
+        "riskLevel": "R4",
+        "idempotentPost": false,
+        "mcpTool": "n8n_community_packages"
+      },
+      {
+        "method": "GET",
+        "path": "/source-control/status",
+        "operationId": "getSourceControlStatus",
+        "requiredScope": "sourceControl:status",
+        "minVersion": "2.14.0",
+        "riskLevel": "R0",
+        "idempotentPost": false,
+        "mcpTool": "n8n_git_and_packages"
+      },
+      {
+        "method": "POST",
+        "path": "/source-control/pull",
+        "operationId": "pullSourceControl",
+        "requiredScope": "sourceControl:pull",
+        "minVersion": "2.14.0",
+        "riskLevel": "R4",
+        "idempotentPost": false,
+        "mcpTool": "n8n_git_and_packages"
+      },
+      {
+        "method": "POST",
+        "path": "/source-control/push",
+        "operationId": "pushSourceControl",
+        "requiredScope": "sourceControl:push",
+        "minVersion": "2.14.0",
+        "riskLevel": "R4",
+        "idempotentPost": false,
+        "mcpTool": "n8n_git_and_packages"
+      },
+      {
+        "method": "POST",
+        "path": "/promotions",
+        "operationId": "createPromotion",
+        "requiredScope": "promotion:create",
+        "minVersion": "2.40.0",
+        "riskLevel": "R4",
+        "idempotentPost": true,
+        "mcpTool": "n8n_git_and_packages"
+      },
+      {
+        "method": "POST",
+        "path": "/n8n-packages/export",
+        "operationId": "exportN8nPackage",
+        "requiredScope": "n8nPackage:export",
+        "minVersion": "2.38.0",
+        "riskLevel": "R1",
+        "idempotentPost": false,
+        "mcpTool": "n8n_git_and_packages"
+      },
+      {
+        "method": "POST",
+        "path": "/n8n-packages/import",
+        "operationId": "importN8nPackage",
+        "requiredScope": "n8nPackage:import",
+        "minVersion": "2.38.0",
+        "riskLevel": "R4",
+        "idempotentPost": true,
+        "mcpTool": "n8n_git_and_packages"
+      },
+      {
+        "method": "GET",
+        "path": "/users",
+        "operationId": "listUsers",
+        "requiredScope": "user:list",
+        "minVersion": "2.3.6",
+        "riskLevel": "R0",
+        "idempotentPost": false,
+        "mcpTool": "n8n_admin_access"
+      },
+      {
+        "method": "GET",
+        "path": "/roles",
+        "operationId": "listRoles",
+        "requiredScope": "user:read",
+        "minVersion": "2.20.0",
+        "riskLevel": "R0",
+        "idempotentPost": false,
+        "mcpTool": "n8n_admin_access"
+      },
+      {
+        "method": "GET",
+        "path": "/node-type-policies",
+        "operationId": "listNodeTypePolicies",
+        "requiredScope": "nodeTypePolicy:read",
+        "minVersion": "2.36.0",
+        "riskLevel": "R0",
+        "idempotentPost": false,
+        "mcpTool": "n8n_admin_settings"
+      },
+      {
+        "method": "GET",
+        "path": "/credential-type-policies",
+        "operationId": "listCredentialTypePolicies",
+        "requiredScope": "credentialTypePolicy:read",
+        "minVersion": "2.36.0",
+        "riskLevel": "R0",
+        "idempotentPost": false,
+        "mcpTool": "n8n_admin_settings"
+      },
+      {
+        "method": "GET",
+        "path": "/log-streaming",
+        "operationId": "listLogStreamingDestinations",
+        "requiredScope": "logStreaming:read",
+        "minVersion": "2.28.0",
+        "riskLevel": "R0",
+        "idempotentPost": false,
+        "mcpTool": "n8n_admin_settings"
+      },
+      {
+        "method": "GET",
+        "path": "/settings/security",
+        "operationId": "getSecuritySettings",
+        "requiredScope": "securitySettings:read",
+        "minVersion": "2.40.0",
+        "riskLevel": "R0",
+        "idempotentPost": false,
+        "mcpTool": "n8n_admin_settings"
+      }
+    ]
+  }
+}

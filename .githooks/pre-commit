@@ -1,0 +1,73 @@
+#!/usr/bin/env sh
+# Zero-secret pre-commit guard for public repository n8n-forge-mcp.
+# Blocks forbidden local state files and scans staged additions for real credentials.
+
+set -eu
+
+FORBIDDEN_PATH_REGEX='(^|/)(\.env(\..+)?|state\.db.*|snapshots/.*|.*\.local\.(toml|json)|.*\.har|\.context-engine/.*)$'
+
+STAGED_FILES="$(git diff --cached --name-only --diff-filter=ACMR)"
+if [ -z "$STAGED_FILES" ]; then
+    exit 0
+fi
+
+BLOCKED_PATHS="$(printf '%s\n' "$STAGED_FILES" | grep -E "$FORBIDDEN_PATH_REGEX" | grep -vE '(^|/)\.env\.example$' || true)"
+if [ -n "$BLOCKED_PATHS" ]; then
+    echo "[pre-commit] BLOCKED: Forbidden sensitive or runtime state file(s) staged:" >&2
+    printf '  - %s\n' $BLOCKED_PATHS >&2
+    exit 1
+fi
+
+# Scan added lines across staged files (excluding scanner definitions and binary .zst blobs)
+SCAN_TARGETS="$(printf '%s\n' "$STAGED_FILES" | grep -vE '^\.githooks/pre-commit$|^\.github/workflows/ci\.yml$|\.zst$' || true)"
+if [ -z "$SCAN_TARGETS" ]; then
+    exit 0
+fi
+
+ADDED_LINES="$(git diff --cached -U0 -- $SCAN_TARGETS | grep -E '^\+[^+]' || true)"
+if [ -z "$ADDED_LINES" ]; then
+    exit 0
+fi
+
+fail_secret() {
+    echo "[pre-commit] BLOCKED: Potential secret detected ($1)." >&2
+    echo "Public repository mandate: never commit real tokens, JWTs, API keys, or DSNs." >&2
+    exit 1
+}
+
+# 1. JWT / Base64 JSON bearer blobs (eyJ...)
+if printf '%s\n' "$ADDED_LINES" | grep -Eq 'eyJ[A-Za-z0-9+/=_-]{14,}'; then
+    fail_secret "eyJ* JWT or base64 credential literal"
+fi
+
+# 2. GitHub & GitLab Personal Access Tokens
+if printf '%s\n' "$ADDED_LINES" | grep -Eq 'github_pat_[A-Za-z0-9_]{12,}|gh[pousr]_[A-Za-z0-9]{20,}'; then
+    fail_secret "GitHub PAT literal"
+fi
+
+if printf '%s\n' "$ADDED_LINES" | grep -Eq 'glpat-[A-Za-z0-9._-]{12,}'; then
+    fail_secret "GitLab PAT literal"
+fi
+
+# 3. X-N8N-API-KEY or N8N_API_KEY assigned a real-looking secret literal
+# Allows header constant names, env var references ($N8N_API_KEY / ${N8N_API_KEY}), <REDACTED>, and short test fixtures.
+if printf '%s\n' "$ADDED_LINES" | grep -Eiq '(X-N8N-API-KEY|N8N_API_KEY|N8N_MCP_ACCESS_TOKEN)[[:space:]"'\'']*[:=][[:space:]"'\'']*[A-Za-z0-9._-]{24,}'; then
+    SUSPECT="$(printf '%s\n' "$ADDED_LINES" | grep -Ei '(X-N8N-API-KEY|N8N_API_KEY|N8N_MCP_ACCESS_TOKEN)[[:space:]"'\'']*[:=][[:space:]"'\'']*[A-Za-z0-9._-]{24,}' | grep -viE 'REDACTED|PLACEHOLDER|EXAMPLE|YOUR_|DUMMY|TEST_KEY|N8N_.*_API_KEY|N8N_.*_TOKEN' || true)"
+    if [ -n "$SUSPECT" ]; then
+        fail_secret "X-N8N-API-KEY / N8N_API_KEY secret literal"
+    fi
+fi
+
+# 4. Cloud / AI / Database DSN credentials
+if printf '%s\n' "$ADDED_LINES" | grep -Eq '(sk-[A-Za-z0-9_-]{24,}|hf_[A-Za-z0-9]{20,}|xox[baprs]-[A-Za-z0-9-]{16,}|21st_sk_[A-Za-z0-9]{20,}|sqa_[A-Za-z0-9]{20,}|rnd_[A-Za-z0-9]{16,})'; then
+    fail_secret "Third-party API token literal"
+fi
+
+if printf '%s\n' "$ADDED_LINES" | grep -Eiq '(postgres|postgresql|mysql|sqlserver)://[^/[:space:]:@]+:[^/[:space:]@<$"{]{6,}@'; then
+    SUSPECT_DSN="$(printf '%s\n' "$ADDED_LINES" | grep -Ei '(postgres|postgresql|mysql|sqlserver)://[^/[:space:]:@]+:[^/[:space:]@<$"{]{6,}@' | grep -viE 'REDACTED|PASSWORD|EXAMPLE|CHANGE_ME|USER:PASS' || true)"
+    if [ -n "$SUSPECT_DSN" ]; then
+        fail_secret "Database DSN with embedded password"
+    fi
+fi
+
+exit 0

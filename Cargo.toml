@@ -1,0 +1,122 @@
+[workspace]
+resolver = "3"
+members = [
+    "crates/n8n-types",
+    "crates/n8n-api-client",
+    "crates/n8n-mcp-bridge",
+    "crates/n8n-capability",
+    "crates/n8n-policy",
+    "crates/n8n-catalog-db",
+    "crates/n8n-graph",
+    "crates/n8n-validator",
+    "crates/n8n-state-vault",
+    "crates/n8n-test-harness",
+    "crates/n8n-audit",
+    "crates/n8n-mcp-server",
+    "crates/n8n-mcp-cli",
+]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.99.1"
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/vinothhacks/n8n-forge-mcp"
+
+[workspace.lints.rust]
+unsafe_code = "forbid"
+
+[workspace.lints.clippy]
+dbg_macro = "deny"
+todo = "deny"
+unimplemented = "deny"
+
+[workspace.dependencies]
+# Internal workspace crates
+n8n-types = { path = "crates/n8n-types" }
+n8n-api-client = { path = "crates/n8n-api-client" }
+n8n-mcp-bridge = { path = "crates/n8n-mcp-bridge" }
+n8n-capability = { path = "crates/n8n-capability" }
+n8n-policy = { path = "crates/n8n-policy" }
+n8n-catalog-db = { path = "crates/n8n-catalog-db" }
+n8n-graph = { path = "crates/n8n-graph" }
+n8n-validator = { path = "crates/n8n-validator" }
+n8n-state-vault = { path = "crates/n8n-state-vault" }
+n8n-test-harness = { path = "crates/n8n-test-harness" }
+n8n-audit = { path = "crates/n8n-audit" }
+n8n-mcp-server = { path = "crates/n8n-mcp-server" }
+
+# MCP SDK (aligned with rmcp 3.11.0 dependency graph)
+rmcp = { version = "3.11.0", default-features = false, features = ["server", "macros", "transport-io", "schemars", "base64"] }
+
+# Async runtime & streaming
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "sync", "time", "io-std", "io-util", "net", "fs", "signal"] }
+tokio-util = { version = "0.7", features = ["codec", "rt"] }
+futures = "0.3"
+async-trait = "0.1"
+
+# HTTP, URL & transport
+reqwest = { version = "0.13", default-features = false, features = ["rustls", "charset", "http2", "json", "query", "stream"] }
+http = "1"
+bytes = "1"
+url = { version = "2.4", features = ["serde"] }
+percent-encoding = "2"
+
+# Serialization, schemas & config
+serde = { version = "1.0", features = ["derive"] }
+serde_json = { version = "1.0", features = ["preserve_order"] }
+serde_json_path = "0.7"
+schemars = { version = "1.0", features = ["derive"] }
+toml = "1.2"
+yaml_serde = "0.10"
+indexmap = { version = "2", features = ["serde"] }
+
+# Errors, time & identifiers
+thiserror = "2"
+anyhow = "1"
+uuid = { version = "1", features = ["v4", "v7", "serde"] }
+chrono = { version = "0.4", features = ["serde"] }
+
+# Security, secrets & cryptography (exact rmcp 3.11.0 alignment)
+secrecy = { version = "0.10", features = ["serde"] }
+zeroize = { version = "1", features = ["derive"] }
+blake3 = "1.8"
+sha2 = "0.11"
+hmac = "0.13"
+chacha20poly1305 = { version = "0.11", features = ["zeroize"] }
+rand = "0.10"
+base64 = "0.23"
+
+# Rate limiting
+governor = "0.10"
+
+# Storage & compression
+rusqlite = { version = "0.43", default-features = false, features = ["bundled", "libsqlite3-sys", "cache", "serde_json", "functions", "backup"] }
+zstd = "0.14"
+flate2 = "1.1"
+dirs = "7.0"
+
+# Graph, AST, regex & diffing
+petgraph = { version = "0.8", features = ["serde-1"] }
+similar = { version = "3.2", features = ["inline", "serde"] }
+oxc_allocator = "0.159"
+oxc_ast = "0.159"
+oxc_parser = "0.159"
+oxc_span = "0.159"
+regex = "1"
+
+# CLI & observability
+clap = { version = "4.6", features = ["derive", "env"] }
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter", "fmt", "json"] }
+
+# Testing
+wiremock = "0.6"
+tempfile = "3"
+
+[profile.release]
+lto = "thin"
+codegen-units = 1
+strip = "symbols"
+opt-level = 3
+panic = "abort"

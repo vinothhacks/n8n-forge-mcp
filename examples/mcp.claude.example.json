@@ -1,0 +1,37 @@
+{
+  "mcpServers": {
+    "n8n-forge-staging": {
+      "type": "stdio",
+      "command": "n8n-rs-mcp",
+      "args": [
+        "mcp",
+        "--instance",
+        "staging",
+        "--policy",
+        "staging-safe"
+      ],
+      "env": {
+        "N8N_API_URL": "https://staging-n8n.example.internal",
+        "N8N_ENVIRONMENT": "staging",
+        "N8N_API_KEY_ENV": "N8N_STAGING_API_KEY",
+        "N8N_MCP_TOKEN_ENV": "N8N_STAGING_MCP_TOKEN"
+      }
+    },
+    "n8n-forge-prod-ro": {
+      "type": "stdio",
+      "command": "n8n-rs-mcp",
+      "args": [
+        "mcp",
+        "--instance",
+        "prod",
+        "--policy",
+        "read-only"
+      ],
+      "env": {
+        "N8N_API_URL": "https://n8n.example.internal",
+        "N8N_ENVIRONMENT": "production",
+        "N8N_API_KEY_ENV": "N8N_PROD_READONLY_API_KEY"
+      }
+    }
+  }
+}
