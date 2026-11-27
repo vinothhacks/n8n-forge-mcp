@@ -17,6 +17,7 @@ permissions:
 env:
   CARGO_TERM_COLOR: always
   RUST_BACKTRACE: "1"
+  RELEASE_TAG: ${{ inputs.tag || github.ref_name }}
 
 jobs:
   pre-release-gate:
@@ -24,8 +25,14 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 25
     steps:
+      - name: Validate release tag
+        shell: bash
+        run: |
+          [[ "$RELEASE_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+([.-][A-Za-z0-9][A-Za-z0-9.-]*)?$ ]]
       - name: Checkout tag
         uses: actions/checkout@v4
+        with:
+          ref: refs/tags/${{ env.RELEASE_TAG }}
 
       - name: Set up Python & zstandard
         uses: actions/setup-python@v5
@@ -69,8 +76,8 @@ jobs:
       - name: Verify formatting, clippy, and release test suite
         run: |
           cargo fmt --all -- --check
-          cargo clippy --workspace --all-targets -- -D warnings
-          cargo test --workspace
+          cargo clippy --locked --workspace --all-targets -- -D warnings
+          cargo test --locked --workspace
 
       - name: Upload verified catalog bundle for matrix packaging
         uses: actions/upload-artifact@v4
@@ -118,6 +125,8 @@ jobs:
     steps:
       - name: Checkout tag
         uses: actions/checkout@v4
+        with:
+          ref: refs/tags/${{ env.RELEASE_TAG }}
 
       - name: Download verified catalog bundle
         uses: actions/download-artifact@v4
@@ -154,10 +163,7 @@ jobs:
       - name: Check binary size against V2 <25 MiB engineering target and stage archive
         shell: bash
         run: |
-          TAG="${GITHUB_REF_NAME}"
-          if [ "${GITHUB_EVENT_NAME}" = "workflow_dispatch" ] && [ -n "${{ inputs.tag }}" ]; then
-            TAG="${{ inputs.tag }}"
-          fi
+          TAG="$RELEASE_TAG"
 
           BIN_PATH="target/${{ matrix.target }}/release/${{ matrix.bin_name }}"
           if [ ! -f "${BIN_PATH}" ]; then
@@ -222,6 +228,8 @@ jobs:
     steps:
       - name: Checkout tag
         uses: actions/checkout@v4
+        with:
+          ref: refs/tags/${{ env.RELEASE_TAG }}
 
       - name: Install Rust toolchain (for cargo metadata dependency graph)
         uses: dtolnay/rust-toolchain@master
@@ -236,11 +244,7 @@ jobs:
       - name: Export locked Cargo dependency metadata & generate CycloneDX + SPDX SBOMs
         shell: bash
         run: |
-          TAG="${GITHUB_REF_NAME}"
-          if [ "${GITHUB_EVENT_NAME}" = "workflow_dispatch" ] && [ -n "${{ inputs.tag }}" ]; then
-            TAG="${{ inputs.tag }}"
-          fi
-          echo "RELEASE_TAG=${TAG}" >> "${GITHUB_ENV}"
+          TAG="$RELEASE_TAG"
           cargo metadata --format-version 1 --locked > "dist/n8n-rs-mcp-${TAG}.cargo-metadata.json"
 
       - name: Generate CycloneDX SBOM (Syft)

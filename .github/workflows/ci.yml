@@ -375,7 +375,7 @@ jobs:
         uses: Swatinem/rust-cache@v2
 
       - name: Run workspace unit, contract, equivalence, wiremock, chaos, and security tests
-        run: cargo test --workspace
+        run: cargo test --locked --workspace
 
       - name: Verify CLI offline catalog digest check
         run: cargo run -p n8n-mcp-cli -- sync-catalog --from pinned-bundle
