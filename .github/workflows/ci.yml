@@ -326,6 +326,7 @@ jobs:
       - name: Install Rust toolchain (from rust-toolchain.toml)
         uses: dtolnay/rust-toolchain@master
         with:
+          toolchain: "1.99.1"
           components: rustfmt, clippy
 
       - name: Cache Cargo registry and build artifacts
@@ -370,6 +371,8 @@ jobs:
 
       - name: Install Rust toolchain (from rust-toolchain.toml)
         uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: "1.99.1"
 
       - name: Cache Cargo registry and build artifacts
         uses: Swatinem/rust-cache@v2
