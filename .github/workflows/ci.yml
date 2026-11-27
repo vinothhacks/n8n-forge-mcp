@@ -228,21 +228,21 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Set up Python & zstandard
-        uses: actions/setup-python@v5
+      - name: Set up the catalog build runtime
+        uses: astral-sh/setup-uv@v10
         with:
-          python-version: "3.12"
-
-      - name: Install Python zstandard
-        run: python -m pip install --upgrade pip zstandard
+          python-version: "3.12.13"
 
       - name: Rebuild catalog and verify BLAKE3/SHA-256 manifest reproducibility
         shell: bash
         run: |
+          # The managed Python 3.12.13 build ships SQLite 3.53.1, the catalog's file writer.
           REPRO_DIR="${RUNNER_TEMP}/catalog-repro"
-          python tools/catalog-builder/build_catalog.py --out-dir "${REPRO_DIR}"
+          uv run --no-project --managed-python --python 3.12.13 --with zstandard \
+            python tools/catalog-builder/build_catalog.py --out-dir "${REPRO_DIR}"
 
-          python - "${REPRO_DIR}" <<'PY'
+          uv run --no-project --managed-python --python 3.12.13 --with zstandard \
+            python - "${REPRO_DIR}" <<'PY'
           import hashlib
           import json
           import pathlib
