@@ -66,7 +66,7 @@ flowchart TB
 
 ### Server-Enforced Policy Profiles (`n8n-policy`)
 
-| Risk Tier | Representative Actions | `read-only` *(Prod Default)* | `staging-safe` *(Staging Default)* | `production-guarded` *(Maint Opt-In)* | `full-dev` *(Local Loopback Only)* |
+| Risk Tier | Representative Actions | `read-only` *(Prod Default)* | `staging-safe` *(Staging Default)* | `production-guarded` *(Maint Opt-In)* | `full-dev` *(Development Only)* |
 | --- | --- | --- | --- | --- | --- |
 | **`R0` Read** | `n8n_capabilities`, `n8n_catalog_*`, `n8n_workflows.list/get`, `n8n_find_nodes`, `n8n_audit` | Allowed | Allowed | Allowed | Allowed |
 | **`R1` Prepare** | Offline `n8n_validate`, `n8n_mutate_nodes(preview)`, `T0 (validate_only)` | Allowed | Allowed | Allowed | Allowed |
@@ -92,13 +92,12 @@ See [`docs/USER_GUIDE.md`](docs/USER_GUIDE.md) for per-tool parameters, response
 
 ### 1. Install or Build `n8n-rs-mcp`
 
-Download a signed platform archive (`Windows x64`, `Linux x64/arm64`, `macOS x64/arm64`) with `SHA256SUMS.txt` and SLSA provenance from GitHub Releases, or build from source with Rust `1.99.1+`:
+Release builds target Windows x64, Linux x64/arm64, and macOS x64/arm64. When archives are published, download them from [GitHub Releases](https://github.com/vinothhacks/n8n-forge-mcp/releases) and verify their SHA-256 against `SHA256SUMS.txt`. The release workflow also produces build provenance.
+
+To build from source, use Rust `1.99.1`:
 
 ```sh
-# Materialize or verify the reproducible offline node/template catalog
-python3 tools/catalog-builder/build_catalog.py --out-dir data
-
-# Build optimized stripped release binary
+# Build the optimized binary using the committed catalog bundle
 cargo build --release --locked --bin n8n-rs-mcp
 ```
 
@@ -188,8 +187,8 @@ python3 tools/catalog-builder/build_catalog.py --out-dir data
 
 # 3. Format, strict Clippy lint gate, and full workspace test suite (including 356 equivalence cases)
 cargo fmt --all -- --check
-cargo clippy --workspace --all-targets -- -D warnings
-cargo test --workspace
+cargo clippy --locked --workspace --all-targets -- -D warnings
+cargo test --locked --workspace
 ```
 
 ### Documentation Index

@@ -24,28 +24,38 @@ jobs:
     name: Pre-Release Security, Catalog & Lint Gate
     runs-on: ubuntu-latest
     timeout-minutes: 25
+    outputs:
+      release_commit: ${{ steps.release-commit.outputs.sha }}
     steps:
       - name: Validate release tag
         shell: bash
         run: |
           [[ "$RELEASE_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+([.-][A-Za-z0-9][A-Za-z0-9.-]*)?$ ]]
       - name: Checkout tag
-        uses: actions/checkout@v4
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
-          ref: refs/tags/${{ env.RELEASE_TAG }}
+          persist-credentials: false
+          fetch-depth: 0
+          ref: ${{ github.event_name == 'push' && github.sha || format('refs/tags/{0}', env.RELEASE_TAG) }}
+
+      - name: Require the release commit to be merged
+        id: release-commit
+        shell: bash
+        env:
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+        run: |
+          git merge-base --is-ancestor HEAD "refs/remotes/origin/${DEFAULT_BRANCH}"
+          printf 'sha=%s\n' "$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
 
       - name: Set up Python & zstandard
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
         with:
           python-version: "3.12"
 
-      - name: Build and verify reproducible offline catalog bundle
+      - name: Verify the committed offline catalog bundle
         shell: bash
         run: |
-          python -m pip install --upgrade pip zstandard
-          if [ ! -f data/catalog.sqlite.zst ]; then
-            python tools/catalog-builder/build_catalog.py --out-dir data
-          fi
+          python -m pip install zstandard==0.25.0
           python - <<'PY'
           import json
           import pathlib
@@ -66,13 +76,13 @@ jobs:
           PY
 
       - name: Install Rust toolchain
-        uses: dtolnay/rust-toolchain@master
+        uses: dtolnay/rust-toolchain@df2a88e9fe4098bad09cb42c3dec7187f15861fc
         with:
           toolchain: "1.99.1"
           components: rustfmt, clippy
 
       - name: Cache Cargo artifacts
-        uses: Swatinem/rust-cache@v2
+        uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2
 
       - name: Verify formatting, clippy, and release test suite
         run: |
@@ -81,7 +91,7 @@ jobs:
           cargo test --locked --workspace
 
       - name: Upload verified catalog bundle for matrix packaging
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
           name: verified-catalog-bundle
           path: |
@@ -124,13 +134,14 @@ jobs:
     runs-on: ${{ matrix.os }}
     timeout-minutes: 45
     steps:
-      - name: Checkout tag
-        uses: actions/checkout@v4
+      - name: Checkout verified release commit
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
-          ref: refs/tags/${{ env.RELEASE_TAG }}
+          persist-credentials: false
+          ref: ${{ needs.pre-release-gate.outputs.release_commit }}
 
       - name: Download verified catalog bundle
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8
         with:
           name: verified-catalog-bundle
           path: data
@@ -142,13 +153,13 @@ jobs:
           sudo apt-get install -y --no-install-recommends gcc-aarch64-linux-gnu g++-aarch64-linux-gnu libc6-dev-arm64-cross
 
       - name: Install Rust toolchain and target
-        uses: dtolnay/rust-toolchain@master
+        uses: dtolnay/rust-toolchain@df2a88e9fe4098bad09cb42c3dec7187f15861fc
         with:
           toolchain: "1.99.1"
           targets: ${{ matrix.target }}
 
       - name: Cache Cargo registry and target build
-        uses: Swatinem/rust-cache@v2
+        uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2
         with:
           key: release-${{ matrix.target }}
 
@@ -212,34 +223,31 @@ jobs:
           fi
 
       - name: Upload target release archive
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
           name: release-archive-${{ matrix.target }}
           path: release-out/*
           if-no-files-found: error
 
-  publish-release:
-    name: SBOM, Checksums, Provenance & GitHub Release
-    needs: build-matrix
+  release-metadata:
+    name: Release SBOM and Checksums
+    needs: [pre-release-gate, build-matrix]
     runs-on: ubuntu-latest
     timeout-minutes: 20
-    permissions:
-      contents: write
-      id-token: write
-      attestations: write
     steps:
-      - name: Checkout tag
-        uses: actions/checkout@v4
+      - name: Checkout verified release commit
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
-          ref: refs/tags/${{ env.RELEASE_TAG }}
+          persist-credentials: false
+          ref: ${{ needs.pre-release-gate.outputs.release_commit }}
 
       - name: Install Rust toolchain (for cargo metadata dependency graph)
-        uses: dtolnay/rust-toolchain@master
+        uses: dtolnay/rust-toolchain@df2a88e9fe4098bad09cb42c3dec7187f15861fc
         with:
           toolchain: "1.99.1"
 
       - name: Download all target release archives
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8
         with:
           pattern: release-archive-*
           path: dist
@@ -252,20 +260,22 @@ jobs:
           cargo metadata --format-version 1 --locked > "dist/n8n-rs-mcp-${TAG}.cargo-metadata.json"
 
       - name: Generate CycloneDX SBOM (Syft)
-        uses: anchore/sbom-action@v0
+        uses: anchore/sbom-action@e22c389904149dbc22b58101806040fa8d37a610 # v0
         with:
           path: .
           format: cyclonedx-json
           output-file: dist/n8n-rs-mcp-${{ env.RELEASE_TAG }}.cdx.json
           upload-artifact: false
+          upload-release-assets: false
 
       - name: Generate SPDX SBOM (Syft)
-        uses: anchore/sbom-action@v0
+        uses: anchore/sbom-action@e22c389904149dbc22b58101806040fa8d37a610 # v0
         with:
           path: .
           format: spdx-json
           output-file: dist/n8n-rs-mcp-${{ env.RELEASE_TAG }}.spdx.json
           upload-artifact: false
+          upload-release-assets: false
 
       - name: Generate SHA256SUMS.txt
         shell: bash
@@ -274,20 +284,60 @@ jobs:
           sha256sum n8n-rs-mcp-* | sort -k2 > SHA256SUMS.txt
           cat SHA256SUMS.txt
 
+      - name: Upload the checksummed release bundle
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        with:
+          name: checksummed-release-bundle
+          path: dist/
+          if-no-files-found: error
+
+  attest-release:
+    name: Attest Release Provenance
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
+    needs: release-metadata
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      id-token: write
+      attestations: write
+    steps:
+      - name: Download checksummed release bundle
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8
+        with:
+          name: checksummed-release-bundle
+          path: dist
+
       - name: Attest SLSA build provenance for release artifacts
-        uses: actions/attest-build-provenance@v2
+        uses: actions/attest-build-provenance@977bb373ede98d70efdf65b84cb5f73e068dcc2a # v3
         with:
           subject-path: |
             dist/*.tar.gz
             dist/*.zip
             dist/*.cdx.json
             dist/*.spdx.json
+            dist/*.cargo-metadata.json
             dist/SHA256SUMS.txt
 
-      - name: Publish GitHub Release
-        if: startsWith(github.ref, 'refs/tags/v')
-        uses: softprops/action-gh-release@v2
+  publish-release:
+    name: Publish GitHub Release
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
+    needs: attest-release
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - name: Download checksummed release bundle
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8
         with:
+          name: checksummed-release-bundle
+          path: dist
+
+      - name: Publish GitHub Release
+        uses: softprops/action-gh-release@8a0cd651e5b2365bd640854a3fa5dfc70e4875f3 # v3
+        with:
+          fail_on_unmatched_files: true
           tag_name: ${{ env.RELEASE_TAG }}
           name: n8n-rs-mcp ${{ env.RELEASE_TAG }}
           prerelease: ${{ contains(env.RELEASE_TAG, '-') }}
