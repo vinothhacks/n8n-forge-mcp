@@ -24,13 +24,13 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - name: Checkout repository (full history for commit scan)
-        uses: actions/checkout@v4
+      - name: Checkout repository
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
-          fetch-depth: 0
+          persist-credentials: false
 
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
         with:
           python-version: "3.12"
 
@@ -131,10 +131,12 @@ jobs:
     timeout-minutes: 10
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
 
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
         with:
           python-version: "3.12"
 
@@ -226,7 +228,9 @@ jobs:
     timeout-minutes: 10
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
 
       - name: Set up the catalog build runtime
         uses: astral-sh/setup-uv@1db35dd8eee11c5894872e0b383ae6c406cf738d # v10.4.0
@@ -238,10 +242,10 @@ jobs:
         run: |
           # The managed Python 3.12.13 build ships SQLite 3.53.1, the catalog's file writer.
           REPRO_DIR="${RUNNER_TEMP}/catalog-repro"
-          uv run --no-project --managed-python --python 3.12.13 --with zstandard \
+          uv run --no-project --managed-python --python 3.12.13 --with zstandard==0.25.0 \
             python tools/catalog-builder/build_catalog.py --out-dir "${REPRO_DIR}"
 
-          uv run --no-project --managed-python --python 3.12.13 --with zstandard \
+          uv run --no-project --managed-python --python 3.12.13 --with zstandard==0.25.0 \
             python - "${REPRO_DIR}" <<'PY'
           import hashlib
           import json
@@ -293,21 +297,20 @@ jobs:
               committed["digests"]["decompressedSqliteSha256"],
           )
 
-          # If data/catalog.sqlite.zst is tracked on disk, verify its exact compressed & decompressed digests too
+          # Verify the exact compressed and decompressed digests of the committed bundle.
           committed_bundle = pathlib.Path("data/catalog.sqlite.zst")
-          if committed_bundle.is_file():
-              raw_zst = committed_bundle.read_bytes()
-              actual_zst_blake3 = blake3_hex(raw_zst)
-              actual_zst_sha256 = hashlib.sha256(raw_zst).hexdigest()
-              if actual_zst_blake3 != committed["digests"]["compressedZstBlake3"]:
-                  raise SystemExit("Committed catalog.sqlite.zst BLAKE3 does not match data/catalog.manifest.json")
-              if actual_zst_sha256 != committed["digests"]["compressedZstSha256"]:
-                  raise SystemExit("Committed catalog.sqlite.zst SHA-256 does not match data/catalog.manifest.json")
-              verify_roundtrip_archive(
-                  committed_bundle,
-                  committed["digests"]["decompressedSqliteBlake3"],
-                  committed["digests"]["decompressedSqliteSha256"],
-              )
+          raw_zst = committed_bundle.read_bytes()
+          actual_zst_blake3 = blake3_hex(raw_zst)
+          actual_zst_sha256 = hashlib.sha256(raw_zst).hexdigest()
+          if actual_zst_blake3 != committed["digests"]["compressedZstBlake3"]:
+              raise SystemExit("Committed catalog.sqlite.zst BLAKE3 does not match data/catalog.manifest.json")
+          if actual_zst_sha256 != committed["digests"]["compressedZstSha256"]:
+              raise SystemExit("Committed catalog.sqlite.zst SHA-256 does not match data/catalog.manifest.json")
+          verify_roundtrip_archive(
+              committed_bundle,
+              committed["digests"]["decompressedSqliteBlake3"],
+              committed["digests"]["decompressedSqliteSha256"],
+          )
 
           print(
               f"Catalog reproducibility verified: blake3={committed['blake3Hex']} "
@@ -321,22 +324,24 @@ jobs:
     timeout-minutes: 25
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
 
       - name: Install Rust toolchain (from rust-toolchain.toml)
-        uses: dtolnay/rust-toolchain@master
+        uses: dtolnay/rust-toolchain@df2a88e9fe4098bad09cb42c3dec7187f15861fc
         with:
           toolchain: "1.99.1"
           components: rustfmt, clippy
 
       - name: Cache Cargo registry and build artifacts
-        uses: Swatinem/rust-cache@v2
+        uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2
 
       - name: Check formatting (cargo fmt --all -- --check)
         run: cargo fmt --all -- --check
 
       - name: Run Clippy across all workspace crates and targets
-        run: cargo clippy --workspace --all-targets -- -D warnings
+        run: cargo clippy --locked --workspace --all-targets -- -D warnings
 
   test-matrix:
     name: Workspace Test Suite (${{ matrix.os }})
@@ -354,31 +359,61 @@ jobs:
     timeout-minutes: 35
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Set up Python & zstandard for catalog bundle
-        uses: actions/setup-python@v5
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
-          python-version: "3.12"
-
-      - name: Ensure offline catalog.sqlite.zst bundle is materialized
-        shell: bash
-        run: |
-          if [ ! -f data/catalog.sqlite.zst ]; then
-            python -m pip install --upgrade pip zstandard
-            python tools/catalog-builder/build_catalog.py --out-dir data
-          fi
+          persist-credentials: false
 
       - name: Install Rust toolchain (from rust-toolchain.toml)
-        uses: dtolnay/rust-toolchain@master
+        uses: dtolnay/rust-toolchain@df2a88e9fe4098bad09cb42c3dec7187f15861fc
         with:
           toolchain: "1.99.1"
 
       - name: Cache Cargo registry and build artifacts
-        uses: Swatinem/rust-cache@v2
+        uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2
 
       - name: Run workspace unit, contract, equivalence, wiremock, chaos, and security tests
         run: cargo test --locked --workspace
 
       - name: Verify CLI offline catalog digest check
-        run: cargo run -p n8n-mcp-cli -- sync-catalog --from pinned-bundle
+        run: cargo run --locked -p n8n-mcp-cli -- sync-catalog --from pinned-bundle
+
+  n8n-approval:
+    name: Live n8n Preview & Approval Gate
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    services:
+      n8n:
+        # n8n 2.48.7, the offline catalog's target baseline.
+        image: ghcr.io/n8n-io/n8n:2.48.7@sha256:fabce3e9678a07d2dde83bd8f5124017f3ec457d0a3fc6b63bb4cec465d63861
+        env:
+          N8N_LISTEN_ADDRESS: "0.0.0.0"
+          N8N_SECURE_COOKIE: "false"
+          N8N_DIAGNOSTICS_ENABLED: "false"
+          N8N_VERSION_NOTIFICATIONS_ENABLED: "false"
+          N8N_TEMPLATES_ENABLED: "false"
+        ports:
+          - 127.0.0.1:5678:5678
+        options: >-
+          --health-cmd "node -e 'fetch(process.argv[1]).then(r => process.exit(r.ok ? 0 : 1), () => process.exit(1))' http://127.0.0.1:5678/healthz/readiness"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 24
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@df2a88e9fe4098bad09cb42c3dec7187f15861fc
+        with:
+          toolchain: "1.99.1"
+
+      - name: Cache Cargo registry and build artifacts
+        uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2
+
+      - name: Build n8n-rs-mcp from Cargo.lock
+        run: cargo build --locked --bin n8n-rs-mcp
+
+      - name: Verify CLI diagnostics, preview, and approval against the disposable service
+        run: timeout 120s python3 tests/live_n8n.py target/debug/n8n-rs-mcp
