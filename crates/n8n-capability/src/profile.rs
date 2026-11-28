@@ -317,18 +317,9 @@ fn parse_discover_payload(
     if let Some(v) = effective.version.as_ref().or(discover.version.as_ref()) {
         *n8n_version = Some(redact_str(v));
     }
-    if !effective.scopes.is_empty() {
-        *scopes_advertised = true;
-        for sc in &effective.scopes {
-            scopes.insert(sc.trim().to_owned());
-        }
-    } else if effective.extra.contains_key("scopes") || discover.extra.contains_key("scopes") {
-        // Explicit empty scopes array -> zero permissions!
-        *scopes_advertised = true;
-    } else {
-        // Check if `scopes` was serialized inside discover (empty vec means empty scopes on scoped key)
-        *scopes_advertised = true;
-    }
+    // A successful discovery response without scopes grants no permissions.
+    *scopes_advertised = true;
+    scopes.extend(effective.scopes.iter().map(|scope| scope.trim().to_owned()));
 
     if let Some(prot) = effective.protected_instance.or(discover.protected_instance) {
         *protected_instance = prot;

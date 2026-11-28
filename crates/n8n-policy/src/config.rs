@@ -128,13 +128,13 @@ pub struct InstancePolicyConfig {
 }
 
 impl InstancePolicyConfig {
-    /// Validates cross-field security invariants (e.g. `FullDev` is forbidden on `Production`).
+    /// Validates cross-field security invariants (e.g. `FullDev` requires Development).
     pub fn validate(&self) -> N8nResult<()> {
         if self.policy_mode == PolicyMode::FullDev
-            && self.environment == EnvironmentKind::Production
+            && self.environment != EnvironmentKind::Development
         {
             return Err(N8nError::config(
-                "PolicyMode `full-dev` is strictly forbidden on a `production` n8n instance",
+                "PolicyMode `full-dev` requires a `development` n8n instance",
             ));
         }
         if self.max_batch_workflows == 0 || self.max_batch_workflows > MAX_BATCH_WORKFLOWS {

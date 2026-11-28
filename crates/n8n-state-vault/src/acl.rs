@@ -208,7 +208,7 @@ pub fn inspect_path_acl(path: &Path) -> AclInspection {
     #[cfg(unix)]
     {
         use std::os::unix::fs::PermissionsExt;
-        return match path.metadata() {
+        match path.metadata() {
             Ok(meta) => {
                 let mode = meta.permissions().mode() & 0o777;
                 let restricted = (mode & 0o077) == 0;
@@ -223,7 +223,7 @@ pub fn inspect_path_acl(path: &Path) -> AclInspection {
                 restricted_to_current_user: false,
                 detail: redact_str(&e.to_string()),
             },
-        };
+        }
     }
 
     #[cfg(windows)]

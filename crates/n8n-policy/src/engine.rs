@@ -504,13 +504,25 @@ mod tests {
     }
 
     #[test]
-    fn config_loader_blocks_full_dev_on_production() {
-        let res = load_workspace_config(None, None, None, Some(PolicyMode::FullDev), |k| match k {
-            "N8N_ENVIRONMENT" => Some("production".to_owned()),
-            "N8N_API_URL" => Some("https://n8n.example.internal".to_owned()),
-            _ => None,
-        });
-        assert!(matches!(res, Err(N8nError::Config { .. })));
+    fn config_loader_restricts_full_dev_to_development() {
+        for environment in ["staging", "production", "development"] {
+            let result = load_workspace_config(
+                None,
+                None,
+                None,
+                Some(PolicyMode::FullDev),
+                |key| match key {
+                    "N8N_ENVIRONMENT" => Some(environment.to_owned()),
+                    "N8N_API_URL" => Some("https://n8n.example.internal".to_owned()),
+                    _ => None,
+                },
+            );
+            if environment == "development" {
+                assert!(result.is_ok());
+            } else {
+                assert!(matches!(result, Err(N8nError::Config { .. })));
+            }
+        }
     }
 
     #[test]
