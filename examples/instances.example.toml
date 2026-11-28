@@ -13,6 +13,7 @@ verify_blake3_on_startup = true
 
 [instances.local-dev]
 url = "http://127.0.0.1:5678"
+allow_loopback_http = true
 environment = "development"
 policy = "full-dev"
 policy_file = "./config/policy.dev.toml"

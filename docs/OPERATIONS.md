@@ -8,7 +8,7 @@ This runbook covers production deployment, multi-instance policy governance, sec
 
 `n8n-rs-mcp` binds every named instance alias to an explicit environment classification (`development`, `staging`, `production`) and an immutable server-side policy mode (`read-only`, `staging-safe`, `production-guarded`, `full-dev`).
 
-- **Server-Side Immutability:** Tool calls only reference configured `alias` names (e.g., `"staging"`, `"prod"`). An agent cannot pass raw URLs, switch profiles, or attach `full-dev` to a `production` environment (`InstancePolicyConfig::validate` rejects `full-dev` + `production` at startup).
+- **Server-Side Immutability:** Tool calls only reference configured `alias` names (e.g., `"staging"`, `"prod"`). An agent cannot pass raw URLs or switch profiles. Startup validates that `full-dev` is assigned only to a `development` instance.
 - **Zero Secrets in Config Files:** Store `instances.toml` with mode `0600` (Unix) or per-user DACL (Windows), referencing **environment variable names** (`api_key_env`, `mcp_token_env`)—never literal credentials.
 
 ### Reference Multi-Instance `instances.toml` (All 4 Profiles)
